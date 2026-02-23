@@ -1,101 +1,148 @@
-import Image from "next/image";
+'use client'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
 
-export default function Home() {
+const exams = ['UPSC CSE', 'GATE CS', 'GATE ECE', 'JEE Mains', 'JEE Advanced', 'NEET', 'CAT', 'IBPS PO', 'SBI PO', 'SSC CGL']
+
+const features = [
+  { icon: '🗺️', title: 'AI Roadmap', desc: 'Personalized study plan built around your exam date and current level.' },
+  { icon: '🃏', title: 'Smart Flashcards', desc: 'Spaced repetition ensures you remember what you learn — forever.' },
+  { icon: '⚡', title: 'Adaptive Quizzes', desc: 'Fresh AI-generated questions every session, exam-pattern aligned.' },
+  { icon: '🤖', title: 'AI Tutor', desc: 'Ask anything. Get concise, exam-focused explanations instantly.' },
+  { icon: '📊', title: 'Progress Analytics', desc: 'Know exactly where you stand and what to fix next.' },
+  { icon: '🔥', title: 'Streak & XP', desc: 'Gamified learning keeps you consistent over months.' },
+]
+
+export default function LandingPage() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-[#0A0F1E] text-white">
+      {/* Nav */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0A0F1E]/80 backdrop-blur-md border-b border-[#1F2937]">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+          <span className="text-xl font-bold gradient-text">Mindly</span>
+          <div className="flex items-center gap-3">
+            <Link href="/auth/login" className="text-gray-400 hover:text-white text-sm transition-colors">
+              Log in
+            </Link>
+            <Link href="/auth/signup" className="bg-[#4F8EF7] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3B7AE8] transition-colors">
+              Get Started Free
+            </Link>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </nav>
+
+      {/* Hero */}
+      <section className="pt-28 pb-20 px-4 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+          <div className="inline-flex items-center gap-2 bg-[#4F8EF7]/10 border border-[#4F8EF7]/20 rounded-full px-4 py-1.5 mb-6 text-sm text-[#4F8EF7]">
+            <span>✨</span> AI-powered exam prep for Indian aspirants
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-bold leading-tight mb-4">
+            Crack your exam with<br />
+            <span className="gradient-text">personalised AI prep</span>
+          </h1>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto mb-8">
+            AI roadmaps, smart flashcards, adaptive quizzes and an always-on tutor — all built specifically for UPSC, GATE, JEE, NEET, CAT, IBPS and more.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/auth/signup" className="bg-[#4F8EF7] text-white px-8 py-3.5 rounded-xl font-semibold text-base hover:bg-[#3B7AE8] transition-colors glow-blue">
+              Start Preparing Free →
+            </Link>
+            <Link href="/auth/login" className="bg-[#1F2937] text-white px-8 py-3.5 rounded-xl font-semibold text-base hover:bg-[#374151] transition-colors">
+              Already a member
+            </Link>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Exam badges */}
+      <section className="pb-16 px-4">
+        <div className="max-w-4xl mx-auto">
+          <p className="text-center text-gray-500 text-sm mb-6">Covering all major competitive exams</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {exams.map(exam => (
+              <span key={exam} className="bg-[#1F2937] border border-[#374151] text-gray-300 px-3 py-1.5 rounded-full text-sm">
+                {exam}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-16 px-4 bg-[#0D1220]">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-3">Everything you need to clear it</h2>
+          <p className="text-gray-400 text-center mb-12">Built by toppers, powered by AI, designed for Indian exam patterns.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                viewport={{ once: true }}
+                className="bg-[#111827] border border-[#1F2937] rounded-2xl p-5 hover:border-[#4F8EF7]/40 transition-colors"
+              >
+                <div className="text-3xl mb-3">{f.icon}</div>
+                <h3 className="font-semibold text-white mb-1">{f.title}</h3>
+                <p className="text-gray-400 text-sm">{f.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="py-16 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-3">Simple, transparent pricing</h2>
+          <p className="text-gray-400 mb-10">Start free. Upgrade when you need more.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { name: 'Free', price: '₹0', period: 'forever', features: ['1 AI roadmap', '20 flashcards/day', '5 quiz questions/day', '10 AI tutor messages/day'], cta: 'Start Free', highlight: false },
+              { name: 'Pro', price: '₹399', period: '/month', features: ['Everything unlimited', 'Full mock tests', 'Roadmap PDF export', '3 streak freezes/week'], cta: 'Go Pro', highlight: true, badge: 'Most Popular' },
+              { name: 'Exam Pack', price: '₹999', period: '/month', features: ['Everything in Pro', 'AI gap analysis', 'Daily intervention alerts', 'Priority support'], cta: 'Get Pack', highlight: false },
+            ].map(plan => (
+              <div key={plan.name} className={`rounded-2xl p-6 border ${plan.highlight ? 'bg-[#4F8EF7]/10 border-[#4F8EF7] glow-blue' : 'bg-[#111827] border-[#1F2937]'}`}>
+                {plan.badge && (
+                  <span className="bg-[#4F8EF7] text-white text-xs px-2 py-0.5 rounded-full mb-3 inline-block">{plan.badge}</span>
+                )}
+                <div className="text-lg font-semibold mb-1">{plan.name}</div>
+                <div className="text-3xl font-bold text-white mb-0.5">{plan.price}</div>
+                <div className="text-gray-500 text-sm mb-4">{plan.period}</div>
+                <ul className="text-sm text-gray-400 space-y-2 mb-6 text-left">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-start gap-2">
+                      <span className="text-[#4F8EF7] mt-0.5">✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/auth/signup" className={`block w-full py-2.5 rounded-xl font-medium text-sm transition-colors text-center ${plan.highlight ? 'bg-[#4F8EF7] text-white hover:bg-[#3B7AE8]' : 'bg-[#1F2937] text-white hover:bg-[#374151]'}`}>
+                  {plan.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-16 px-4 text-center bg-[#0D1220]">
+        <h2 className="text-3xl font-bold mb-3">Your exam won&apos;t wait. Start today.</h2>
+        <p className="text-gray-400 mb-6">Join thousands of aspirants preparing smarter with Mindly.</p>
+        <Link href="/auth/signup" className="bg-[#4F8EF7] text-white px-8 py-3.5 rounded-xl font-semibold inline-block hover:bg-[#3B7AE8] transition-colors">
+          Create Free Account →
+        </Link>
+      </section>
+
+      <footer className="py-6 px-4 border-t border-[#1F2937] text-center text-gray-600 text-sm">
+        © 2025 Mindly. Built for Indian aspirants.
       </footer>
     </div>
-  );
+  )
 }
