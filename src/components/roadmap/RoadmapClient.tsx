@@ -117,7 +117,7 @@ export default function RoadmapClient({ roadmap, profile, initialCompletedDays =
     // Derive day completion optimistically
     setCompletedDays(prev => {
       const next = new Set(prev)
-      const doneCount = [...completedTopics].filter(k => k.startsWith(`${date}:`)).length + (nowDone ? 1 : -1)
+      const doneCount = Array.from(completedTopics).filter(k => k.startsWith(`${date}:`)).length + (nowDone ? 1 : -1)
       if (doneCount >= totalTopicsForDay) next.add(date); else next.delete(date)
       return next
     })
