@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { PLAN_LIMITS } from '@/types'
+import { PLAN_LIMITS, EXAM_CONFIGS, ExamType } from '@/types'
 import { getEffectivePlan } from '@/lib/plan'
 import { getTutorGraph } from '@/lib/ai/graph'
 import { loadStudentState, saveStudentState } from '@/lib/ai/student-state'
+import type { StudentContext } from '@/lib/ai/types'
 import Groq from 'groq-sdk'
 
 export const runtime = 'nodejs'
@@ -87,21 +88,91 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ── Load student state + chat history ────────────────────────────────────
+    // ── Load student state, chat history, and performance context ───────────
     const examDomain = userData?.exam || 'competitive exams'
-    const [studentState, historyResult] = await Promise.all([
-      loadStudentState(supabase, user.id, examDomain),
-      supabase
-        .from('chat_messages')
-        .select('role, content')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(8),
-    ])
+    const today = new Date().toISOString().split('T')[0]
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+
+    const [studentState, historyResult, profileRes, streakRes, quizRes, roadmapRes] =
+      await Promise.all([
+        loadStudentState(supabase, user.id, examDomain),
+        supabase
+          .from('chat_messages')
+          .select('role, content')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(8),
+        supabase
+          .from('user_profiles')
+          .select('full_name, exam_date')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('streak_data')
+          .select('current_streak')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('quiz_attempts')
+          .select('accuracy, topic')
+          .eq('user_id', user.id)
+          .gte('created_at', sevenDaysAgo),
+        supabase
+          .from('roadmaps')
+          .select('completed_topics, phases')
+          .eq('user_id', user.id)
+          .single(),
+      ])
 
     const chatHistory = (historyResult.data || [])
       .reverse()
       .map((m) => ({ role: m.role, content: m.content }))
+
+    // ── Build StudentContext from fetched data ────────────────────────────────
+    const weekAttempts = quizRes.data || []
+    const quizAccuracyLast7Days =
+      weekAttempts.length > 0
+        ? Math.round(weekAttempts.reduce((acc, a) => acc + (a.accuracy || 0), 0) / weekAttempts.length)
+        : null
+
+    const recentWeakTopics = weekAttempts
+      .filter((a) => (a.accuracy || 0) < 70 && a.topic)
+      .map((a) => a.topic as string)
+      .filter((t, i, arr) => arr.indexOf(t) === i)
+      .slice(0, 3)
+
+    const completedTopics: string[] = roadmapRes.data?.completed_topics ?? []
+    const todayTopicsDone = completedTopics.filter((k) => k.startsWith(`${today}:`)).length
+
+    // Compute todayTopicsTotal from roadmap phases JSONB
+    let todayTopicsTotal = 0
+    const phases = roadmapRes.data?.phases ?? []
+    for (const phase of phases) {
+      for (const week of (phase.weeks ?? [])) {
+        for (const day of (week.days ?? [])) {
+          if (day.date === today) {
+            todayTopicsTotal = (day.topics ?? []).length
+            break
+          }
+        }
+      }
+    }
+
+    const daysToExam = profileRes.data?.exam_date
+      ? Math.ceil((new Date(profileRes.data.exam_date).getTime() - Date.now()) / 86400000)
+      : null
+
+    const examConfig = EXAM_CONFIGS[examDomain as ExamType]
+    const studentContext: StudentContext = {
+      studentName: profileRes.data?.full_name ?? null,
+      examName: examConfig?.name || examDomain,
+      daysToExam,
+      currentStreak: streakRes.data?.current_streak || 0,
+      quizAccuracyLast7Days,
+      todayTopicsDone,
+      todayTopicsTotal,
+      recentWeakTopics,
+    }
 
     // ── Save user message ────────────────────────────────────────────────────
     await supabase.from('chat_messages').insert({
@@ -116,6 +187,7 @@ export async function POST(req: NextRequest) {
       userMessage: message.trim(),
       studentState,
       chatHistory,
+      studentContext,
       messageType: 'general', // default, overridden by classify node
       assessmentResult: null,
       tutorAction: 'respond_general',

@@ -64,6 +64,17 @@ export interface AssessmentResult {
   feedback: string
 }
 
+export interface StudentContext {
+  studentName: string | null
+  examName: string
+  daysToExam: number | null
+  currentStreak: number
+  quizAccuracyLast7Days: number | null // percentage 0–100, null if no recent quizzes
+  todayTopicsDone: number
+  todayTopicsTotal: number
+  recentWeakTopics: string[] // topic names with low quiz accuracy
+}
+
 export function defaultStudentState(userId: string): StudentState {
   return {
     userId,

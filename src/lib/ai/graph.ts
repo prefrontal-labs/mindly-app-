@@ -16,6 +16,7 @@ import { Annotation, StateGraph, START, END } from '@langchain/langgraph'
 import Groq from 'groq-sdk'
 import type {
   StudentState,
+  StudentContext,
   AssessmentResult,
   MessageType,
   TutorAction,
@@ -37,6 +38,8 @@ const TutorState = Annotation.Root({
   userMessage: Annotation<string>(),
   studentState: Annotation<StudentState>(),
   chatHistory: Annotation<Array<{ role: string; content: string }>>(),
+  // Real-time performance context passed in from the API route
+  studentContext: Annotation<StudentContext | null>(),
   // Populated by classify node
   messageType: Annotation<MessageType>(),
   // Populated by assess node
@@ -311,11 +314,12 @@ function planNode(state: State): Partial<State> {
 }
 
 // ─── Node 4: Build Prompt ────────────────────────────────────────────────────
-// Constructs the dynamic system prompt that embeds all 6 cognitive science
-// principles + the specific action for this turn.
+// Constructs the dynamic system prompt combining the Mindly elite AI study
+// strategist persona with 6 cognitive science principles + current student data.
 
 function buildPromptNode(state: State): Partial<State> {
   const s = state.updatedStudentState ?? state.studentState
+  const ctx = state.studentContext ?? null
 
   // PRINCIPLE 3: Spaced repetition — find FRAGILE/DEVELOPING concepts
   const fragileConcepts = Object.entries(s.conceptMastery)
@@ -339,9 +343,40 @@ function buildPromptNode(state: State): Partial<State> {
   // PRINCIPLE 4: Interleaving — recently tested topics
   const recentTopics = s.lastConceptsTested.slice(-4).join(', ') || 'none'
 
+  // ── Build real performance context block ───────────────────────────────────
+  let perfContextBlock = ''
+  if (ctx) {
+    const nameStr = ctx.studentName ? `${ctx.studentName}` : 'Student'
+    const examStr = ctx.examName
+    const daysStr = ctx.daysToExam !== null
+      ? `${ctx.daysToExam} days`
+      : 'exam date not set'
+    const streakStr = `${ctx.currentStreak} day${ctx.currentStreak !== 1 ? 's' : ''}`
+    const accuracyStr = ctx.quizAccuracyLast7Days !== null
+      ? `${ctx.quizAccuracyLast7Days}%`
+      : 'no recent quizzes'
+    const todayStr = ctx.todayTopicsTotal > 0
+      ? `${ctx.todayTopicsDone}/${ctx.todayTopicsTotal} topics done`
+      : ctx.todayTopicsDone > 0
+        ? `${ctx.todayTopicsDone} topics completed`
+        : 'not started'
+    const weakStr = ctx.recentWeakTopics.length > 0
+      ? ctx.recentWeakTopics.join(', ')
+      : 'not yet identified from quizzes'
+
+    perfContextBlock = `
+STUDENT PERFORMANCE DATA (ground every coaching response in these numbers):
+- Student: ${nameStr} | Exam: ${examStr} | Time to exam: ${daysStr}
+- Current study streak: ${streakStr}
+- Quiz accuracy (last 7 days): ${accuracyStr}
+- Today's roadmap progress: ${todayStr}
+- Quiz-identified weak topics: ${weakStr}
+`
+  }
+
   // ── Action-specific instructions (implements all 6 principles) ─────────────
   const actionInstructions: Record<TutorAction, string> = {
-    warmup_retrieval: `WARM-UP RETRIEVAL (Principle 1+3). Welcome the student back in ONE sentence. Then immediately test 1-2 concepts from past sessions. Prioritize these FRAGILE/DEVELOPING concepts: [${fragileConcepts.join(', ') || 'not recorded yet — ask what topic they want to practice'}]. Also check overdue SOLID concepts: [${overdueConcepts.join(', ') || 'none'}]. Ask ONE open-ended question — no new content. No multiple choice.`,
+    warmup_retrieval: `WARM-UP RETRIEVAL (Principle 1+3). Welcome the student back in ONE sentence — if you have their name and streak, reference both ("Welcome back, [name] — day [N] streak, let's keep it going."). Then immediately test 1-2 concepts from past sessions. Prioritize these FRAGILE/DEVELOPING concepts: [${fragileConcepts.join(', ') || 'not recorded yet — ask what topic they want to practice'}]. Also check overdue SOLID concepts: [${overdueConcepts.join(', ') || 'none'}]. Ask ONE open-ended question — no new content. No multiple choice.`,
 
     introduce_new_concept: `INTRODUCE NEW CONCEPT (Principle 2+5). Pick ONE concept that's a natural next step. Explain in 3-5 sentences MAX. Anchor it with a real-world incident, surprising fact, or famous exam case study — make it emotionally memorable (Principle 5). Then IMMEDIATELY ask a generative question to test initial understanding (Principle 2). Never ask "Do you have any questions?" — test them first.`,
 
@@ -373,15 +408,26 @@ function buildPromptNode(state: State): Partial<State> {
 
     preview_next: `SESSION WRAP-UP + PREVIEW. Briefly (2 sentences) name 1-2 specific things they solidified — specific praise, not generic. E.g., "You nailed the part about [detail] that most people miss." Then tease the next session with curiosity: "Next time we're covering [X] — and it actually breaks the assumption you just made about [current concept] in a surprising way." Leave them curious.`,
 
-    respond_general: `EXPERT TUTOR RESPONSE. Be direct and helpful. Never end on passive delivery — always close with a question that tests or deepens understanding. Max 150 words.`,
+    respond_general: `COACHING RESPONSE. Be direct, specific, and data-backed. If the student asks what to study or how they're doing, reference their actual performance numbers from STUDENT PERFORMANCE DATA above. Give a specific micro-plan: not "study Physics" — "spend 40 min on [weak topic] today — this appears in 2-3 ${s.examDomain} questions annually." Use structured coaching sections when appropriate:
+## 🔥 Today's Focus | ## 📊 Performance Insight | ## 🎯 Priority Weak Areas
+## 🧠 Smart Strategy | ## ⏱️ Time Plan | ## 🚀 Expected Impact | ## 🔁 Streak Reminder
+(only include sections relevant to what the student asked — don't force all of them)
+Never end passively — close with a question or concrete next action.`,
   }
 
-  const systemPrompt = `You are Mindly, an expert adaptive learning tutor powered by cognitive science. You are a private tutor — not a chatbot. Your only metric is durable, long-term retention.
+  const systemPrompt = `You are Mindly — an elite AI study strategist for Indian competitive exam students. You combine the precision of a performance data analyst, the expertise of a private tutor, and the drive of a coach. Your mission: convert every conversation into a measurable improvement in exam readiness.
 
-STUDENT KNOWLEDGE STATE:
+COACHING IDENTITY:
+- You are data-driven. Every coaching response references real numbers: streak, accuracy, days to exam, today's progress.
+- You diagnose ROOT CAUSES, not symptoms. When a student gets something wrong, find the exact conceptual gap — not just "weak in Physics".
+- Be direct and specific. Not "study more" — "spend 45 min on [specific topic] — your quiz data shows you missed 3 of 4 questions in this area."
+- Acknowledge pressure in ONE sentence maximum, then redirect to concrete action. Never dwell on stress.
+- When forecasting: "At your current accuracy rate, you're on track for [X]% in [subject]. To hit [target], fix [specific area] in the next [N] days."
+${perfContextBlock}
+STUDENT KNOWLEDGE STATE (session-level, from adaptive learning graph):
 - Domain: ${s.examDomain}
 - Session Phase: ${s.sessionPhase.replace('_', ' ').toUpperCase()} (message ${s.messagesInSession} of session ${s.sessionCount})
-- Streak: ${s.consecutiveFailures} consecutive failures | ${s.consecutiveSuccesses} consecutive successes
+- In-session streak: ${s.consecutiveFailures} consecutive failures | ${s.consecutiveSuccesses} consecutive successes
 - Confidence Calibration: ${s.confidenceCalibration}
 - FRAGILE/DEVELOPING concepts (highest priority): ${fragileConcepts.slice(0, 5).join(', ') || 'none yet'}
 - Overdue for review: ${overdueConcepts.slice(0, 3).join(', ') || 'none'}
@@ -391,7 +437,7 @@ STUDENT KNOWLEDGE STATE:
 YOUR TASK THIS TURN:
 ${actionInstructions[state.tutorAction]}
 
-NON-NEGOTIABLE RULES (these override all other tendencies):
+NON-NEGOTIABLE RULES (override all other tendencies):
 1. Max 150 words per response — unless revealing an answer after 2 failed hints
 2. Never say "Great job!" without naming EXACTLY what was impressive
 3. Never give a lecture without testing understanding within the same response
@@ -400,7 +446,8 @@ NON-NEGOTIABLE RULES (these override all other tendencies):
 6. Never end a response passively — always close with a question or challenge
 7. If the student gets everything right effortlessly, escalate immediately
 8. Never repeat the same explanation twice — if it didn't work, try a completely different angle
-9. Use Indian exam context for examples when relevant (UPSC, GATE, JEE, NEET, CAT, IBPS, SSC)`
+9. Use Indian exam context for examples when relevant (UPSC, GATE, JEE, NEET, CAT, IBPS, SSC)
+10. When asked about study planning or what to focus on, use STUDENT PERFORMANCE DATA to give specific, time-boxed recommendations tied to days remaining to exam`
 
   return { systemPrompt }
 }
