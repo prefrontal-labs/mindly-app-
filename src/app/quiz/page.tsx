@@ -30,10 +30,9 @@ const OPTION_COLORS = {
   wrong: 'bg-[#EF4444]/10 border-[#EF4444] text-[#EF4444]',
 }
 
-function SetupScreen({ onStart }: { onStart: (topic: string, exam: ExamType, difficulty: Difficulty, count: number) => void }) {
+function SetupScreen({ onStart, userExam }: { onStart: (topic: string, exam: ExamType, difficulty: Difficulty, count: number) => void; userExam: ExamType }) {
   const params = useSearchParams()
   const [topic, setTopic] = useState(params.get('topic') || '')
-  const [exam, setExam] = useState<ExamType>((params.get('exam') as ExamType) || 'UPSC_CSE')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [count, setCount] = useState(10)
 
@@ -51,15 +50,10 @@ function SetupScreen({ onStart }: { onStart: (topic: string, exam: ExamType, dif
       </div>
       <div>
         <label className="text-gray-400 text-sm block mb-2">Exam</label>
-        <select
-          value={exam}
-          onChange={e => setExam(e.target.value as ExamType)}
-          className="w-full bg-[#111827] border border-[#1F2937] rounded-xl px-4 py-3 text-white text-sm focus:outline-none"
-        >
-          {Object.values(EXAM_CONFIGS).map(e => (
-            <option key={e.id} value={e.id}>{e.name}</option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between px-4 py-3 bg-[#111827] border border-[#1F2937] rounded-xl">
+          <span className="text-white text-sm">{EXAM_CONFIGS[userExam]?.name || userExam}</span>
+          <span className="text-[10px] text-gray-500">From your profile</span>
+        </div>
       </div>
       <div>
         <label className="text-gray-400 text-sm block mb-2">Difficulty</label>
@@ -92,7 +86,7 @@ function SetupScreen({ onStart }: { onStart: (topic: string, exam: ExamType, dif
         </div>
       </div>
       <button
-        onClick={() => { if (!topic.trim()) { toast.error('Enter a topic'); return } onStart(topic.trim(), exam, difficulty, count) }}
+        onClick={() => { if (!topic.trim()) { toast.error('Enter a topic'); return } onStart(topic.trim(), userExam, difficulty, count) }}
         className="w-full bg-[#F59E0B] text-black py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#D97706] transition-colors"
       >
         <Zap className="w-4 h-4" />
@@ -316,6 +310,14 @@ function QuizPageInner() {
   const [responses, setResponses] = useState<Response[]>([])
   const [timeTaken, setTimeTaken] = useState(0)
   const [quizParams, setQuizParams] = useState<{ topic: string; exam: ExamType; difficulty: Difficulty; count: number } | null>(null)
+  const [userExam, setUserExam] = useState<ExamType>('UPSC_CSE')
+
+  useEffect(() => {
+    fetch('/api/profile')
+      .then(r => r.json())
+      .then(data => { if (data.profile?.exam) setUserExam(data.profile.exam as ExamType) })
+      .catch(() => {})
+  }, [])
 
   async function startQuiz(topic: string, exam: ExamType, difficulty: Difficulty, count: number) {
     setQuizParams({ topic, exam, difficulty, count })
@@ -383,7 +385,7 @@ function QuizPageInner() {
         <Zap className="w-5 h-5 text-[#F59E0B] ml-auto" />
       </div>
 
-      {mode === 'setup' && <SetupScreen onStart={startQuiz} />}
+      {mode === 'setup' && <SetupScreen onStart={startQuiz} userExam={userExam} />}
 
       {mode === 'loading' && (
         <div className="flex flex-col items-center py-20 gap-4">

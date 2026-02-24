@@ -86,9 +86,8 @@ function FlipCard({ card, onRate }: { card: Flashcard; onRate: (rating: Rating) 
   )
 }
 
-function GenerateForm({ onGenerate }: { onGenerate: () => void }) {
+function GenerateForm({ onGenerate, userExam }: { onGenerate: () => void; userExam: ExamType }) {
   const [topic, setTopic] = useState('')
-  const [exam, setExam] = useState<ExamType>('UPSC_CSE')
   const [loading, setLoading] = useState(false)
 
   async function handleGenerate() {
@@ -98,7 +97,7 @@ function GenerateForm({ onGenerate }: { onGenerate: () => void }) {
       const res = await fetch('/api/flashcards/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: topic.trim(), exam }),
+        body: JSON.stringify({ topic: topic.trim(), exam: userExam }),
       })
       const data = await res.json()
       if (res.status === 429) {
@@ -130,15 +129,10 @@ function GenerateForm({ onGenerate }: { onGenerate: () => void }) {
       </div>
       <div>
         <label className="text-gray-400 text-sm block mb-2">Exam</label>
-        <select
-          value={exam}
-          onChange={e => setExam(e.target.value as ExamType)}
-          className="w-full bg-[#111827] border border-[#1F2937] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#4F8EF7]/50"
-        >
-          {Object.values(EXAM_CONFIGS).map(e => (
-            <option key={e.id} value={e.id}>{e.name}</option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between px-4 py-3 bg-[#111827] border border-[#1F2937] rounded-xl">
+          <span className="text-white text-sm">{EXAM_CONFIGS[userExam]?.name || userExam}</span>
+          <span className="text-[10px] text-gray-500">From your profile</span>
+        </div>
       </div>
       <button
         onClick={handleGenerate}
@@ -163,6 +157,14 @@ export default function FlashcardsPage() {
   const [reviewed, setReviewed] = useState(0)
   const [loadingDue, setLoadingDue] = useState(true)
   const [sessionComplete, setSessionComplete] = useState(false)
+  const [userExam, setUserExam] = useState<ExamType>('UPSC_CSE')
+
+  useEffect(() => {
+    fetch('/api/profile')
+      .then(r => r.json())
+      .then(data => { if (data.profile?.exam) setUserExam(data.profile.exam as ExamType) })
+      .catch(() => {})
+  }, [])
 
   const fetchDueCards = useCallback(async () => {
     setLoadingDue(true)
@@ -292,7 +294,7 @@ export default function FlashcardsPage() {
           </button>
           <h1 className="text-xl font-bold text-white">Generate Flashcards</h1>
         </div>
-        <GenerateForm onGenerate={onGenerate} />
+        <GenerateForm onGenerate={onGenerate} userExam={userExam} />
       </div>
     )
   }

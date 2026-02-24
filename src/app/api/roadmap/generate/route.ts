@@ -3,25 +3,40 @@ import { createClient } from '@/lib/supabase/server'
 import { generateJSON } from '@/lib/groq'
 import { ExamType, EXAM_CONFIGS, SubjectAssessment } from '@/types'
 
-const FALLBACK_ROADMAP = {
-  phases: [
-    {
-      phase: 'foundation',
-      start_date: new Date().toISOString().split('T')[0],
-      end_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      daily_hours: 3,
-      weeks: [
-        {
-          week_number: 1,
-          start_date: new Date().toISOString().split('T')[0],
-          end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-          topics: ['Introduction to subject basics', 'Core concepts overview', 'Foundation building'],
-          resources: [{ type: 'book', title: 'NCERT Textbooks', author: 'NCERT' }],
-        },
-      ],
-    },
-  ],
+function makeFallbackRoadmap() {
+  const today = new Date()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000)
+
+  const days = Array.from({ length: 7 }, (_, i) => ({
+    date: fmt(addDays(today, i)),
+    topics: ['Introduction to subject basics', 'Core concepts overview'],
+  }))
+
+  return {
+    phases: [
+      {
+        phase: 'foundation',
+        start_date: fmt(today),
+        end_date: fmt(addDays(today, 30)),
+        daily_hours: 3,
+        weeks: [
+          {
+            week_number: 1,
+            start_date: fmt(today),
+            end_date: fmt(addDays(today, 6)),
+            theme: 'Foundation Building',
+            topics: ['Introduction to subject basics', 'Core concepts overview', 'Foundation building'],
+            resources: [{ type: 'book', title: 'NCERT Textbooks', author: 'NCERT' }],
+            days,
+          },
+        ],
+      },
+    ],
+  }
 }
+
+const FALLBACK_ROADMAP = makeFallbackRoadmap()
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,7 +59,28 @@ export async function POST(req: NextRequest) {
       .filter(s => s.status === 'confident')
       .map(s => s.subject)
 
-    const systemPrompt = `You are an expert academic planner specializing in Indian competitive exams. Based on the user's exam selection, exam date, daily hours, current level, and subject-wise self-assessment, generate a detailed, phase-based study roadmap. Structure the roadmap into 4 phases: Foundation (build basics), Depth (go deep into each subject), Revision (rapid review), Mock Test Phase (only practice tests). For each phase, specify: start date, end date, daily hour allocation, list of topics per week, and suggested resources (books and free YouTube channels only — no paid resources). Return as structured JSON only, no other text. The JSON must have this exact structure: { "phases": [{ "phase": "foundation|depth|revision|mock", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "daily_hours": number, "weeks": [{ "week_number": number, "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "topics": ["topic1", "topic2"], "resources": [{ "type": "book|youtube", "title": "...", "author": "..." }] }] }] }`
+    const systemPrompt = `You are an expert academic planner specializing in Indian competitive exams. Generate a detailed, phase-based daily study roadmap. Structure it into 4 phases: Foundation, Depth, Revision, Mock Test. For each phase provide weeks, and for each week provide an exact daily breakdown with one entry per day. Return ONLY valid JSON with no other text. Use this exact structure:
+{
+  "phases": [{
+    "phase": "foundation|depth|revision|mock",
+    "start_date": "YYYY-MM-DD",
+    "end_date": "YYYY-MM-DD",
+    "daily_hours": number,
+    "weeks": [{
+      "week_number": number,
+      "start_date": "YYYY-MM-DD",
+      "end_date": "YYYY-MM-DD",
+      "theme": "brief week theme",
+      "topics": ["topic1", "topic2"],
+      "resources": [{ "type": "book|youtube", "title": "...", "author": "..." }],
+      "days": [
+        { "date": "YYYY-MM-DD", "topics": ["specific topic for this day", "second topic"] },
+        { "date": "YYYY-MM-DD", "topics": ["next day topic"] }
+      ]
+    }]
+  }]
+}
+IMPORTANT: The "days" array must have exactly 7 entries per week with dates matching each day from week start_date to end_date. Each day's topics must be specific and actionable (2-3 topics per day). Keep weeks array to a reasonable size.`
 
     const userPrompt = `Exam: ${examConfig.name}
 Exam Date: ${examDate} (${daysLeft} days from today)

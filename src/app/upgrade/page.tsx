@@ -64,7 +64,7 @@ interface RazorpayOptions {
   name: string
   description: string
   theme: { color: string }
-  handler: (response: { razorpay_payment_id: string; razorpay_order_id: string }) => void
+  handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void
   modal: { ondismiss: () => void }
 }
 
@@ -105,17 +105,19 @@ export default function UpgradePage() {
         description: `${plan.name} Plan — ${billing === 'annual' ? 'Annual' : 'Monthly'}`,
         theme: { color: plan.color },
         handler: async (response) => {
-          // Verify payment
           try {
-            await fetch('/api/payments/webhook', {
+            const res = await fetch('/api/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
                 plan: planId,
+                billing,
               }),
             })
+            if (!res.ok) throw new Error('Verification failed')
             toast.success(`🎉 Welcome to Mindly ${plan.name}!`)
             setTimeout(() => window.location.href = '/dashboard', 1500)
           } catch {

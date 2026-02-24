@@ -44,21 +44,36 @@ export default function DashboardClient({ user, profile, roadmap, streak, flashc
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   // Get today's topics from roadmap
-  type RoadmapWeek = { topics: string[]; start_date: string; end_date: string }
+  type RoadmapDay = { date: string; topics: string[] }
+  type RoadmapWeek = { topics: string[]; start_date: string; end_date: string; days?: RoadmapDay[] }
   type RoadmapPhase = { phase: string; weeks: RoadmapWeek[] }
   const phases = (roadmap?.phases as RoadmapPhase[]) || []
   const todayStr = new Date().toISOString().split('T')[0]
   let todayTopics: string[] = []
 
-  // First pass: exact date match
-  for (const phase of phases) {
+  // First pass: exact day match (new daily roadmaps)
+  outer: for (const phase of phases) {
     for (const week of phase.weeks || []) {
-      if (todayStr >= week.start_date && todayStr <= week.end_date) {
-        todayTopics = week.topics
-        break
+      if (week.days) {
+        const dayEntry = week.days.find(d => d.date === todayStr)
+        if (dayEntry) {
+          todayTopics = dayEntry.topics
+          break outer
+        }
       }
     }
-    if (todayTopics.length) break
+  }
+
+  // Second pass: week date range match (old weekly roadmaps, backward compat)
+  if (todayTopics.length === 0) {
+    outer2: for (const phase of phases) {
+      for (const week of phase.weeks || []) {
+        if (todayStr >= week.start_date && todayStr <= week.end_date) {
+          todayTopics = week.topics
+          break outer2
+        }
+      }
+    }
   }
 
   // Fallback: no date match → closest week (handles stale or future-dated roadmaps)
@@ -69,7 +84,7 @@ export default function DashboardClient({ user, profile, roadmap, streak, flashc
         const diff = Math.abs(new Date(week.start_date).getTime() - new Date(todayStr).getTime())
         if (diff < closestDiff) {
           closestDiff = diff
-          todayTopics = week.topics
+          todayTopics = week.days?.[0]?.topics || week.topics
         }
       }
     }

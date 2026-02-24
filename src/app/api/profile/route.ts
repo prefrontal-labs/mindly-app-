@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
-    const { name, daily_hours, exam_date } = body
+    const { name, daily_hours, exam_date, exam } = body
 
     const updates: Record<string, unknown> = {}
     if (name) updates.name = name
@@ -45,6 +45,7 @@ export async function PATCH(req: NextRequest) {
     const profileUpdates: Record<string, unknown> = {}
     if (daily_hours) profileUpdates.daily_hours = daily_hours
     if (exam_date) profileUpdates.exam_date = exam_date
+    if (exam) profileUpdates.exam = exam
 
     if (Object.keys(profileUpdates).length > 0) {
       await supabase.from('user_profiles').update(profileUpdates).eq('user_id', user.id)

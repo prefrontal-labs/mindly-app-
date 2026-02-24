@@ -32,6 +32,7 @@ export default function ProfilePage() {
   const [name, setName] = useState('')
   const [dailyHours, setDailyHours] = useState(3)
   const [examDate, setExamDate] = useState('')
+  const [exam, setExam] = useState<ExamType>('UPSC_CSE')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function ProfilePage() {
         setName(d.user?.name || '')
         setDailyHours(d.profile?.daily_hours || 3)
         setExamDate(d.profile?.exam_date?.split('T')[0] || '')
+        setExam(d.profile?.exam || 'UPSC_CSE')
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false))
@@ -53,14 +55,43 @@ export default function ProfilePage() {
       const res = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, daily_hours: dailyHours, exam_date: examDate }),
+        body: JSON.stringify({ name, daily_hours: dailyHours, exam_date: examDate, exam }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Profile updated!')
+
+      // Check if any roadmap-affecting fields changed
+      const prevExamDate = data?.profile?.exam_date?.split('T')[0] || ''
+      const prevDailyHours = data?.profile?.daily_hours || 3
+      const prevExam = data?.profile?.exam
+
+      const roadmapChanged = examDate !== prevExamDate || dailyHours !== prevDailyHours || exam !== prevExam
+
       setEditing(false)
-      // Refresh
       const updated = await fetch('/api/profile').then(r => r.json())
       setData(updated)
+
+      if (roadmapChanged && updated.profile) {
+        toast.loading('Regenerating your roadmap...', { id: 'roadmap-regen' })
+        try {
+          const p = updated.profile
+          await fetch('/api/roadmap/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              exam: p.exam,
+              examDate: p.exam_date?.split('T')[0],
+              dailyHours: p.daily_hours,
+              level: p.level || 'beginner',
+              subjects: p.subject_assessments || [],
+            }),
+          })
+          toast.success('Roadmap updated to match your new plan!', { id: 'roadmap-regen' })
+        } catch {
+          toast.error('Profile saved, but roadmap update failed. Go to Roadmap to regenerate.', { id: 'roadmap-regen' })
+        }
+      } else {
+        toast.success('Profile updated!')
+      }
     } catch {
       toast.error('Failed to save')
     } finally {
@@ -128,13 +159,16 @@ export default function ProfilePage() {
             />
           </div>
           <div>
-            <label className="text-gray-400 text-xs block mb-1.5">Daily Study Hours: {dailyHours}h</label>
-            <input
-              type="range" min={1} max={12}
-              value={dailyHours}
-              onChange={e => setDailyHours(Number(e.target.value))}
-              className="w-full accent-[#4F8EF7]"
-            />
+            <label className="text-gray-400 text-xs block mb-1.5">Target Exam</label>
+            <select
+              value={exam}
+              onChange={e => setExam(e.target.value as ExamType)}
+              className="w-full bg-[#0A0F1E] border border-[#1F2937] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#4F8EF7]/50"
+            >
+              {Object.values(EXAM_CONFIGS).map(e => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="text-gray-400 text-xs block mb-1.5">Exam Date</label>
@@ -145,13 +179,25 @@ export default function ProfilePage() {
               className="w-full bg-[#0A0F1E] border border-[#1F2937] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#4F8EF7]/50"
             />
           </div>
+          <div>
+            <label className="text-gray-400 text-xs block mb-1.5">Daily Study Hours: {dailyHours}h</label>
+            <input
+              type="range" min={1} max={12}
+              value={dailyHours}
+              onChange={e => setDailyHours(Number(e.target.value))}
+              className="w-full accent-[#4F8EF7]"
+            />
+          </div>
+          <p className="text-[10px] text-amber-500/70 text-center">
+            Changing exam, exam date, or daily hours will automatically regenerate your roadmap.
+          </p>
           <button
             onClick={handleSave}
             disabled={saving}
             className="w-full bg-[#4F8EF7] text-white py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            Save Changes
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </motion.div>
       )}
