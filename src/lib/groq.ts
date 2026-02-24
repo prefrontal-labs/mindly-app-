@@ -14,7 +14,8 @@ export const MODEL = 'llama-3.3-70b-versatile'
 export async function generateJSON<T>(
   systemPrompt: string,
   userPrompt: string,
-  fallback: T
+  fallback: T,
+  maxTokens = 4096
 ): Promise<T> {
   try {
     const response = await getGroq().chat.completions.create({
@@ -24,7 +25,7 @@ export async function generateJSON<T>(
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: maxTokens,
     })
 
     const content = response.choices[0]?.message?.content ?? ''
@@ -35,7 +36,13 @@ export async function generateJSON<T>(
       .replace(/\n?```$/i, '')
       .trim()
 
-    return JSON.parse(cleaned) as T
+    try {
+      return JSON.parse(cleaned) as T
+    } catch (parseErr) {
+      console.error('[Groq JSON Parse Error]', parseErr)
+      console.error('[Groq Raw Content]', content.slice(0, 500))
+      return fallback
+    }
   } catch (err) {
     console.error('[Groq Error]', err)
     return fallback

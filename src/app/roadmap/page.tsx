@@ -16,6 +16,8 @@ export default async function RoadmapPage() {
     <RoadmapClient
       roadmap={roadmapRes.data}
       profile={profileRes.data}
+      initialCompletedDays={roadmapRes.data?.completed_days ?? []}
+      initialCompletedTopics={roadmapRes.data?.completed_topics ?? []}
     />
   )
 }

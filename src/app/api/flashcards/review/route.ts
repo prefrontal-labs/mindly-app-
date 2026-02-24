@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sm2Update } from '@/lib/sm2'
 import { awardXP, XP_REWARDS, updateStreak } from '@/lib/xp'
 import { PLAN_LIMITS } from '@/types'
+import { getEffectivePlan } from '@/lib/plan'
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,16 +81,14 @@ export async function GET(req: NextRequest) {
     const today = new Date().toISOString().split('T')[0]
 
     // Enforce daily review limit for free users
-    const { data: userData } = await supabase
-      .from('users')
-      .select('plan, plan_expiry')
-      .eq('id', user.id)
-      .single()
+    const [userDataRes, profileRes] = await Promise.all([
+      supabase.from('users').select('plan, plan_expiry').eq('id', user.id).single(),
+      supabase.from('user_profiles').select('exam').eq('user_id', user.id).single(),
+    ])
 
-    const rawPlan = userData?.plan || 'free'
-    const planExpired = userData?.plan_expiry && new Date(userData.plan_expiry) < new Date()
-    const plan = (planExpired ? 'free' : rawPlan) as keyof typeof PLAN_LIMITS
+    const plan = getEffectivePlan(userDataRes.data?.plan, userDataRes.data?.plan_expiry)
     const limit = PLAN_LIMITS[plan].flashcards_per_day
+    const userExam = profileRes.data?.exam
 
     let reviewedToday = 0
     if (limit !== Infinity) {
@@ -102,7 +101,7 @@ export async function GET(req: NextRequest) {
       reviewedToday = usage?.flashcards_reviewed || 0
     }
 
-    const remaining = limit === Infinity ? 50 : Math.max(0, limit - reviewedToday)
+    const remaining = limit === Infinity ? 200 : Math.max(0, limit - reviewedToday)
 
     if (remaining === 0) {
       return NextResponse.json({ error: 'Daily limit reached', upgrade_required: true, cards: [] }, { status: 429 })
@@ -116,7 +115,12 @@ export async function GET(req: NextRequest) {
       .order('next_review_date', { ascending: true })
       .limit(remaining)
 
-    if (topic) query = query.eq('topic', topic)
+    if (topic) {
+      query = query.eq('topic', topic)
+    } else if (userExam) {
+      // Only surface cards matching the user's current exam — prevents old test cards from other subjects showing up
+      query = query.eq('exam', userExam)
+    }
 
     const { data: cards } = await query
 

@@ -13,6 +13,7 @@ interface Props {
   weekAccuracy: number
   daysLeft: number | null
   dailyUsage: Record<string, unknown> | null
+  completedTopics: string[]
 }
 
 function GoalRing({ progress, size = 80 }: { progress: number; size?: number }) {
@@ -35,7 +36,7 @@ function GoalRing({ progress, size = 80 }: { progress: number; size?: number }) 
   )
 }
 
-export default function DashboardClient({ user, profile, roadmap, streak, flashcardsDue, weekAccuracy, daysLeft, dailyUsage }: Props) {
+export default function DashboardClient({ user, profile, roadmap, streak, flashcardsDue, weekAccuracy, daysLeft, dailyUsage, completedTopics }: Props) {
   const name = (user?.name as string) || 'Aspirant'
   const exam = profile?.exam as ExamType
   const examConfig = exam ? EXAM_CONFIGS[exam] : null
@@ -90,11 +91,23 @@ export default function DashboardClient({ user, profile, roadmap, streak, flashc
     }
   }
 
-  const dailyGoal = (profile?.daily_hours as number || 3) * 60 // minutes
-  const minutesStudied = ((dailyUsage?.flashcards_reviewed as number || 0) * 2) +
-    ((dailyUsage?.quiz_questions_answered as number || 0) * 1) +
-    ((dailyUsage?.ai_messages_sent as number || 0) * 3)
-  const goalProgress = Math.min(100, Math.round((minutesStudied / dailyGoal) * 100))
+  // Goal: topics completed today vs total topics scheduled for today
+  const todayCompletedCount = completedTopics.filter(k => k.startsWith(`${todayStr}:`)).length
+  const totalTopicsToday = todayTopics.length
+
+  let goalProgress: number
+  if (totalTopicsToday > 0) {
+    // Primary: topic-based (directly reflects roadmap completion)
+    goalProgress = Math.min(100, Math.round((todayCompletedCount / totalTopicsToday) * 100))
+  } else {
+    // Fallback: activity-based when no roadmap topics exist for today
+    const dailyGoal = (profile?.daily_hours as number || 3) * 60
+    const minutesStudied =
+      ((dailyUsage?.flashcards_reviewed as number || 0) * 2) +
+      ((dailyUsage?.quiz_questions_answered as number || 0) * 1) +
+      ((dailyUsage?.ai_messages_sent as number || 0) * 3)
+    goalProgress = Math.min(100, Math.round((minutesStudied / dailyGoal) * 100))
+  }
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-5 space-y-4">
@@ -132,7 +145,11 @@ export default function DashboardClient({ user, profile, roadmap, streak, flashc
         </div>
         <div className="flex-1">
           <div className="text-white font-semibold text-sm mb-0.5">Daily goal</div>
-          <div className="text-gray-400 text-xs mb-2">Keep studying to fill the ring</div>
+          <div className="text-gray-400 text-xs mb-2">
+            {totalTopicsToday > 0
+              ? `${todayCompletedCount}/${totalTopicsToday} topics done today`
+              : 'Keep studying to fill the ring'}
+          </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <Flame className="w-4 h-4 text-[#F59E0B]" />

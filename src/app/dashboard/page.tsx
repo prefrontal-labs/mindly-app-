@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const [userRes, profileRes, roadmapRes, streakRes, flashcardsRes, attemptsRes] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).single(),
     supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
-    supabase.from('roadmaps').select('*').eq('user_id', user.id).single(),
+    supabase.from('roadmaps').select('exam, phases, completed_topics, completed_days').eq('user_id', user.id).single(),
     supabase.from('streak_data').select('*').eq('user_id', user.id).single(),
     supabase.from('flashcards')
       .select('id', { count: 'exact' })
@@ -54,6 +54,7 @@ export default async function DashboardPage() {
       weekAccuracy={weekAccuracy}
       daysLeft={daysLeft}
       dailyUsage={usage}
+      completedTopics={roadmap?.completed_topics ?? []}
     />
   )
 }

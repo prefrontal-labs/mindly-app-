@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Zap, Timer as TimerIcon, ChevronRight, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -21,6 +22,14 @@ interface Response {
   selected_answer: string
   is_correct: boolean
   time_taken_seconds: number
+}
+
+interface AnalysisResult {
+  summary: string
+  strengths: string[]
+  weaknesses: string[]
+  study_topics: string[]
+  quick_revision: string[]
 }
 
 const OPTION_COLORS = {
@@ -233,11 +242,17 @@ function ResultsScreen({
   responses,
   timeTaken,
   onRetry,
+  analysis,
+  analysisLoading,
+  exam,
 }: {
   questions: QuizQuestion[]
   responses: Response[]
   timeTaken: number
   onRetry: () => void
+  analysis: AnalysisResult | null
+  analysisLoading: boolean
+  exam: ExamType
 }) {
   const correct = responses.filter(r => r.is_correct).length
   const accuracy = Math.round((correct / responses.length) * 100)
@@ -260,6 +275,9 @@ function ResultsScreen({
           {accuracy >= 80 && <span className="text-[#F59E0B]">+{accuracy === 100 ? 30 : 10} bonus XP</span>}
         </div>
       </motion.div>
+
+      {/* AI Analysis */}
+      <AnalysisCard analysis={analysis} loading={analysisLoading} exam={exam} />
 
       {/* Answer review */}
       <div>
@@ -304,6 +322,102 @@ function ResultsScreen({
   )
 }
 
+function AnalysisCard({
+  analysis,
+  loading,
+  exam,
+}: {
+  analysis: AnalysisResult | null
+  loading: boolean
+  exam: ExamType
+}) {
+  if (loading) {
+    return (
+      <div className="bg-[#111827] border border-[#1F2937] rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-lg">🧠</span>
+          <span className="text-white font-semibold text-sm">Analysing your performance...</span>
+        </div>
+        {[80, 60, 90, 70].map((w, i) => (
+          <div key={i} className={`h-3 bg-[#1F2937] rounded-full animate-pulse`} style={{ width: `${w}%` }} />
+        ))}
+      </div>
+    )
+  }
+
+  if (!analysis || (!analysis.strengths.length && !analysis.weaknesses.length && !analysis.study_topics.length)) {
+    return null
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-[#111827] border border-[#1F2937] rounded-2xl p-5 space-y-4"
+    >
+      <div className="flex items-start gap-2">
+        <span className="text-xl">🧠</span>
+        <div>
+          <p className="text-white font-semibold text-sm mb-0.5">Performance Analysis</p>
+          <p className="text-gray-400 text-xs leading-relaxed">{analysis.summary}</p>
+        </div>
+      </div>
+
+      {analysis.strengths.length > 0 && (
+        <div>
+          <p className="text-[#10B981] text-xs font-semibold mb-1.5 uppercase tracking-wide">✅ Strengths</p>
+          <div className="space-y-1">
+            {analysis.strengths.map((s, i) => (
+              <p key={i} className="text-gray-300 text-xs leading-relaxed pl-2">· {s}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis.weaknesses.length > 0 && (
+        <div>
+          <p className="text-[#EF4444] text-xs font-semibold mb-1.5 uppercase tracking-wide">🔴 Focus Areas</p>
+          <div className="space-y-1">
+            {analysis.weaknesses.map((w, i) => (
+              <p key={i} className="text-gray-300 text-xs leading-relaxed pl-2">· {w}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis.study_topics.length > 0 && (
+        <div>
+          <p className="text-[#4F8EF7] text-xs font-semibold mb-1.5 uppercase tracking-wide">📚 Study These Next</p>
+          <div className="space-y-1.5">
+            {analysis.study_topics.map((topic, i) => (
+              <div key={i} className="flex items-center justify-between gap-2">
+                <p className="text-gray-300 text-xs flex-1">{i + 1}. {topic}</p>
+                <Link
+                  href={`/quiz?topic=${encodeURIComponent(topic)}&exam=${exam}`}
+                  className="text-[10px] text-[#4F8EF7] font-medium whitespace-nowrap hover:text-[#3B7AE8] transition-colors"
+                >
+                  Practice →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis.quick_revision.length > 0 && (
+        <div className="border-t border-[#1F2937] pt-3">
+          <p className="text-[#F59E0B] text-xs font-semibold mb-1.5 uppercase tracking-wide">⚡ Quick Revision Needed</p>
+          <div className="space-y-1">
+            {analysis.quick_revision.map((item, i) => (
+              <p key={i} className="text-gray-400 text-xs leading-relaxed pl-2">· {item}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 function QuizPageInner() {
   const [mode, setMode] = useState<'setup' | 'loading' | 'quiz' | 'results'>('setup')
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
@@ -311,6 +425,8 @@ function QuizPageInner() {
   const [timeTaken, setTimeTaken] = useState(0)
   const [quizParams, setQuizParams] = useState<{ topic: string; exam: ExamType; difficulty: Difficulty; count: number } | null>(null)
   const [userExam, setUserExam] = useState<ExamType>('UPSC_CSE')
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/profile')
@@ -346,23 +462,48 @@ function QuizPageInner() {
   async function handleComplete(finalResponses: Response[], time: number) {
     setResponses(finalResponses)
     setTimeTaken(time)
+    setAnalysis(null)
+    setAnalysisLoading(true)
     setMode('results')
 
-    // Submit in background
+    // Submit + analyze in parallel (background)
     if (quizParams) {
-      try {
-        await fetch('/api/quiz/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: 'topic',
-            topic: quizParams.topic,
-            exam: quizParams.exam,
-            responses: finalResponses,
-            time_taken_seconds: time,
-          }),
+      // Submit to DB (best effort)
+      fetch('/api/quiz/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'topic',
+          topic: quizParams.topic,
+          exam: quizParams.exam,
+          responses: finalResponses,
+          time_taken_seconds: time,
+        }),
+      }).catch(() => {})
+
+      // AI analysis — fire and update state when ready
+      fetch('/api/quiz/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: quizParams.topic,
+          exam: quizParams.exam,
+          questions,
+          responses: finalResponses.map(r => ({
+            selected_answer: r.selected_answer,
+            is_correct: r.is_correct,
+            time_taken_seconds: r.time_taken_seconds,
+          })),
+        }),
+      })
+        .then(r => r.json())
+        .then((data: AnalysisResult) => {
+          setAnalysis(data)
+          setAnalysisLoading(false)
         })
-      } catch { /* best effort */ }
+        .catch(() => setAnalysisLoading(false))
+    } else {
+      setAnalysisLoading(false)
     }
   }
 
@@ -403,7 +544,10 @@ function QuizPageInner() {
           questions={questions}
           responses={responses}
           timeTaken={timeTaken}
-          onRetry={() => setMode('setup')}
+          onRetry={() => { setMode('setup'); setAnalysis(null) }}
+          analysis={analysis}
+          analysisLoading={analysisLoading}
+          exam={userExam}
         />
       )}
 

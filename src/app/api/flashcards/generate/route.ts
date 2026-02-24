@@ -55,9 +55,21 @@ front: question or term (max 20 words)
 back: answer or definition (max 60 words)
 Ensure factual accuracy. Make them exam-pattern aligned for ${exam}.`
 
-    const cards = await generateJSON<FlashcardData[]>(systemPrompt, userPrompt, FALLBACK_CARDS)
+    const rawCards = await generateJSON<FlashcardData[] | Record<string, FlashcardData[]>>(systemPrompt, userPrompt, FALLBACK_CARDS)
 
-    const validCards = Array.isArray(cards) ? cards.slice(0, 20) : FALLBACK_CARDS
+    // Handle cases where the model wraps the array in an object: {"cards": [...]} or {"flashcards": [...]}
+    let cards: FlashcardData[]
+    if (Array.isArray(rawCards)) {
+      cards = rawCards
+    } else if (rawCards && typeof rawCards === 'object') {
+      const nested = Object.values(rawCards).find(v => Array.isArray(v))
+      cards = (nested as FlashcardData[] | undefined) ?? FALLBACK_CARDS
+    } else {
+      cards = FALLBACK_CARDS
+    }
+
+    const validCards = cards.filter(c => c?.front && c?.back).slice(0, 20)
+    const finalCards = validCards.length >= 3 ? validCards : FALLBACK_CARDS
 
     const today = new Date().toISOString().split('T')[0]
 
@@ -65,7 +77,7 @@ Ensure factual accuracy. Make them exam-pattern aligned for ${exam}.`
     const { data: inserted, error } = await supabase
       .from('flashcards')
       .insert(
-        validCards.map(card => ({
+        finalCards.map(card => ({
           user_id: user.id,
           topic,
           exam,
